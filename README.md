@@ -1,84 +1,82 @@
 # interntrack-api
 
-API REST pour suivre ses candidatures de stage : entreprises, candidatures et contacts.
+Une petite API pour suivre mes candidatures de stage, parce que mon tableau Excel commence à ne plus suffire.
 
-## Problème
+## Pourquoi ce projet
 
-Aujourd'hui, je suis mes candidatures dans un tableau : le nom de l'entreprise, le poste, la date d'envoi et le statut (envoyée, entretien, refus…). Il me manque une date de relance pour savoir qui recontacter et quand, un endroit pour noter les personnes rencontrées dans chaque entreprise, et le lien vers l'offre. Quand une même entreprise publie plusieurs offres, le tableau devient vite illisible.
+Pour l'instant, je note tout dans un tableau : l'entreprise, le poste, la date à laquelle j'ai postulé et où j'en suis (envoyée, entretien, refus…). Ça marche au début, mais je ne sais jamais quand relancer, je perds le nom des personnes que j'ai rencontrées, et je dois rechercher le lien de l'offre à chaque fois. Et quand une entreprise a plusieurs offres, ça devient vite le bazar.
 
-## User stories
+## Ce que je veux pouvoir faire
 
-1. En tant qu'utilisateur, je veux enregistrer une entreprise afin de retrouver ses informations (site, ville, secteur).
-2. En tant qu'utilisateur, je veux voir la liste de mes entreprises afin d'avoir une vue d'ensemble de mes cibles.
-3. En tant qu'utilisateur, je veux enregistrer une candidature pour une entreprise afin de garder le poste, la date d'envoi et le lien de l'offre.
-4. En tant qu'utilisateur, je veux mettre à jour le statut d'une candidature afin de savoir où j'en suis dans chaque processus.
-5. En tant qu'utilisateur, je veux lister mes candidatures filtrées par statut ou par date de relance afin de savoir qui relancer cette semaine.
-6. En tant qu'utilisateur, je veux ajouter un contact à une entreprise afin de me souvenir à qui écrire et comment le joindre.
+1. En tant qu'utilisateur, je veux enregistrer une entreprise afin de retrouver ses informations.
+   → `POST /companies`
+2. En tant qu'utilisateur, je veux voir toutes mes entreprises afin d'avoir une vue d'ensemble de là où je postule.
+   → `GET /companies`
+3. En tant qu'utilisateur, je veux enregistrer une candidature afin de garder le poste, la date et le lien de l'offre au même endroit.
+   → `POST /applications`
+4. En tant qu'utilisateur, je veux changer le statut d'une candidature afin de savoir où j'en suis avec chaque entreprise.
+   → `PATCH /applications/{id}`
+5. En tant qu'utilisateur, je veux voir les candidatures à relancer afin de ne plus en oublier.
+   → `GET /applications?follow_up_before=...`
+6. En tant qu'utilisateur, je veux ajouter un contact à une entreprise afin de savoir à qui écrire.
+   → `POST /contacts`, `GET /contacts?company_id=...`
 
-| Story | Endpoints |
-|-------|-----------|
-| 1 | `POST /companies` |
-| 2 | `GET /companies` |
-| 3 | `POST /applications` |
-| 4 | `PATCH /applications/{id}` |
-| 5 | `GET /applications?status=…&follow_up_before=…` |
-| 6 | `POST /contacts`, `GET /contacts?company_id=…` |
+## Les endpoints
 
-## Endpoints prévus
+Pour chaque ressource, je reprends les 5 opérations de samedi : créer, lister, lire, modifier, supprimer.
 
-Chaque ressource expose les 5 opérations CRUD : créer, lister, lire un élément, modifier, supprimer.
-
-### Companies
-
-- `POST /companies` : créer une entreprise
-- `GET /companies` : lister mes entreprises
-- `GET /companies/{id}` : détail d'une entreprise
-- `PATCH /companies/{id}` : modifier une entreprise
-- `DELETE /companies/{id}` : supprimer une entreprise
-
-### Applications
-
-- `POST /applications` : créer une candidature (avec `company_id`)
-- `GET /applications` : lister mes candidatures (filtres `status`, `company_id`, `follow_up_before`)
-- `GET /applications/{id}` : détail d'une candidature
-- `PATCH /applications/{id}` : modifier une candidature (statut, date de relance…)
-- `DELETE /applications/{id}` : supprimer une candidature
-
-### Contacts
-
-- `POST /contacts` : créer un contact (avec `company_id`)
-- `GET /contacts` : lister mes contacts (filtre `company_id`)
-- `GET /contacts/{id}` : détail d'un contact
-- `PATCH /contacts/{id}` : modifier un contact
-- `DELETE /contacts/{id}` : supprimer un contact
-
-### Users
-
-Pas de CRUD complet pour l'instant : les utilisateurs serviront à l'authentification et à l'isolation des données (semaine 5).
-
-## Modèle de données
-
-Schéma complet : [docs/schema.dbml](docs/schema.dbml), à coller dans [dbdiagram.io](https://dbdiagram.io).
+**Entreprises**
 
 ```
-users 1 ──< companies 1 ──< applications
-                       1 ──< contacts
+POST   /companies
+GET    /companies
+GET    /companies/{id}
+PATCH  /companies/{id}
+DELETE /companies/{id}
 ```
 
-- **users → companies (1-N)** : un utilisateur a plusieurs entreprises, et chaque entreprise appartient à un seul utilisateur (`companies.user_id`). C'est la base de l'isolation des données.
-- **companies → applications (1-N)** : une entreprise peut avoir plusieurs candidatures (plusieurs offres, ou une nouvelle candidature l'année suivante). Une candidature concerne une seule entreprise (`applications.company_id`).
-- **companies → contacts (1-N)** : un contact appartient à une entreprise (`contacts.company_id`). Son propriétaire est l'utilisateur de cette entreprise : on le retrouve par `contacts.company_id → companies.user_id`, sans dupliquer de `user_id` dans la table. C'est aussi le cas pour les candidatures.
+**Candidatures**
 
-### Colonnes d'une candidature
+```
+POST   /applications
+GET    /applications        (filtres : status, company_id, follow_up_before)
+GET    /applications/{id}
+PATCH  /applications/{id}
+DELETE /applications/{id}
+```
 
-| Colonne | Type | Rôle |
-|---------|------|------|
-| `id` | integer, PK | identifiant |
-| `company_id` | integer, FK → companies | entreprise concernée |
-| `position` | varchar | intitulé du poste |
-| `status` | enum | `to_apply`, `applied`, `interview`, `offer`, `rejected` |
-| `applied_at` | date, nullable | date d'envoi (vide si pas encore envoyée) |
-| `follow_up_at` | date, nullable | date de relance prévue |
-| `offer_url` | varchar, nullable | lien de l'offre |
-| `notes` | text, nullable | notes libres |
-| `created_at` | timestamp | date de création de la ligne |
+**Contacts**
+
+```
+POST   /contacts
+GET    /contacts            (filtre : company_id)
+GET    /contacts/{id}
+PATCH  /contacts/{id}
+DELETE /contacts/{id}
+```
+
+Les utilisateurs n'ont pas encore leurs propres routes. Ils serviront surtout pour la connexion, en semaine 5.
+
+## Le modèle de données
+
+Quatre tables : `users`, `companies`, `applications` et `contacts`. Le schéma complet est dans [docs/schema.dbml](docs/schema.dbml) (il s'ouvre sur [dbdiagram.io](https://dbdiagram.io)).
+
+```
+users ──< companies ──< applications
+                    └─< contacts
+```
+
+Comment je vois les relations :
+
+- **Un utilisateur a plusieurs entreprises**, mais chaque entreprise n'appartient qu'à un seul utilisateur. C'est ce qui permettra plus tard que chacun ne voie que ses propres données.
+- **Une entreprise peut avoir plusieurs candidatures** : par exemple deux offres différentes chez le même employeur, ou une nouvelle tentative l'année suivante.
+- **Un contact appartient à une entreprise.** Pour savoir à qui il est, on passe par l'entreprise : le contact appartient à l'utilisateur qui possède l'entreprise. Pareil pour les candidatures. Comme ça, je ne stocke pas deux fois la même information.
+
+Toutes les tables ont un `id` et un `created_at`. Pour une candidature, je garde :
+
+- `position` : l'intitulé du poste
+- `status` : `to_apply`, `applied`, `interview`, `offer` ou `rejected`
+- `applied_at` : la date d'envoi (vide si je n'ai pas encore postulé)
+- `follow_up_at` : la date à laquelle relancer
+- `offer_url` : le lien de l'offre
+- `notes` : tout le reste
